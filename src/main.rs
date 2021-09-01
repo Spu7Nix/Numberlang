@@ -1,7 +1,7 @@
 mod parser;
 use std::{collections::HashMap, env::args, fs};
 
-pub type Number = u32;
+pub type Number = i32;
 fn main() {
     let script_path = "test.123";
     let content = fs::read_to_string(script_path).unwrap();
@@ -207,6 +207,31 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
             Value::Tuple(Vec::new())
         }
 
+        22 => {
+            // for loop
+            assert_eq!(args.len(), 3);
+
+            let iterator = eval(&args[0], state).unwrap_num();
+
+            let saved_val = state.variables.get(&iterator).cloned();
+
+            let list = match eval(&args[1], state) {
+                n @ Value::Number(_) => vec![n],
+                Value::Tuple(n) => n,
+            };
+
+            for val in list {
+                state.variables.insert(iterator, val);
+                eval(&args[2], state);
+            }
+
+            if let Some(v) = saved_val {
+                state.variables.insert(iterator, v);
+            }
+
+            Value::Tuple(Vec::new())
+        }
+
         30 => {
             // define function
             assert_eq!(args.len(), 3);
@@ -224,6 +249,75 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
                 .insert(func_id, (arguments, args[2].clone()));
 
             Value::Tuple(Vec::new())
+        }
+
+        40 => {
+            // index tuple
+            assert_eq!(args.len(), 2);
+            let tuple = eval(&args[0], state);
+            let index = eval(&args[1], state).unwrap_num();
+
+            //dbg!(&tuple, index);
+
+            assert!(index >= 0);
+
+            match tuple {
+                n @ Value::Number(_) => {
+                    if index == 0 {
+                        n
+                    } else {
+                        panic!("index out of bounds")
+                    }
+                }
+
+                Value::Tuple(t) => t[index as usize].clone(),
+            }
+        }
+
+        41 => {
+            // tuple length
+            assert_eq!(args.len(), 1);
+            let tuple = eval(&args[0], state);
+            match tuple {
+                Value::Number(_) => Value::Number(1),
+
+                Value::Tuple(t) => Value::Number(t.len() as Number),
+            }
+        }
+
+        42 => {
+            // create range
+            assert_eq!(args.len(), 2);
+            let start = eval(&args[0], state).unwrap_num();
+            let end = eval(&args[1], state).unwrap_num();
+            Value::Tuple((start..end).into_iter().map(Value::Number).collect())
+        }
+
+        43 => {
+            // last element in tuple
+            assert_eq!(args.len(), 1);
+            let tuple = eval(&args[0], state);
+
+            match tuple {
+                n @ Value::Number(_) => n,
+
+                Value::Tuple(t) => t.last().unwrap().clone(),
+            }
+        }
+
+        44 => {
+            // append to tuple
+            assert_eq!(args.len(), 2);
+            let tuple = eval(&args[0], state);
+            let mut list = match tuple {
+                n @ Value::Number(_) => vec![n],
+
+                Value::Tuple(t) => t,
+            };
+
+            list.push(eval(&args[1], state));
+
+            Value::Tuple(list)
         }
 
         n => {
