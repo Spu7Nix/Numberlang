@@ -18,10 +18,19 @@ fn main() {
 
 // Hello world: 0 < 72 101 108 108 111 32 119 111 114 108 100
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Value {
     Number(Number),
     Tuple(Vec<Value>),
+}
+
+impl Value {
+    fn unwrap_num(&self) -> Number {
+        match self {
+            Value::Number(n) => *n,
+            _ => panic!("expected number"),
+        }
+    }
 }
 
 struct State {
@@ -35,10 +44,7 @@ fn eval(expr: parser::Expression, state: &mut State) -> Value {
         Number(n) => Value::Number(n),
         Tuple(v) => Value::Tuple(v.iter().map(|e| eval(e.clone(), state)).collect()),
         Call { func, args } => {
-            let func = match eval(*func, state) {
-                Value::Number(n) => n,
-                _ => panic!("expected function id to be a number"),
-            };
+            let func = eval(*func, state).unwrap_num();
             call_function(func, args, state)
         }
     }
@@ -49,10 +55,7 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
         0 => {
             // get variable value
             assert_eq!(args.len(), 1);
-            let var_id = match eval(args[0].clone(), state) {
-                Value::Number(n) => n,
-                Value::Tuple(v) => panic!("tuples can not be variable ids"),
-            };
+            let var_id = eval(args[0].clone(), state).unwrap_num();
             state
                 .variables
                 .get(&var_id)
@@ -63,10 +66,7 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
         1 => {
             // set variable value
             assert_eq!(args.len(), 2);
-            let key = match eval(args[0].clone(), state) {
-                Value::Number(n) => n,
-                Value::Tuple(v) => panic!("tuples can not be variable ids"),
-            };
+            let key = eval(args[0].clone(), state).unwrap_num();
 
             let val = eval(args[1].clone(), state);
             state.variables.insert(key, val);
@@ -78,24 +78,38 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
             // sum
             let mut sum = 0;
             for arg in args {
-                match eval(arg, state) {
-                    Value::Number(n) => sum += n,
-                    Value::Tuple(v) => panic!("cannot sum tuples"),
-                }
+                sum += eval(arg, state).unwrap_num();
             }
             Value::Number(sum)
         }
 
         3 => {
-            // product
-            let mut product = 1;
-            for arg in args {
-                match eval(arg, state) {
-                    Value::Number(n) => product *= n,
-                    Value::Tuple(v) => panic!("cannot multiply tuples"),
-                }
-            }
-            Value::Number(product)
+            // equal
+            assert_eq!(args.len(), 2);
+
+            Value::Number(
+                if eval(args[0].clone(), state) == eval(args[1].clone(), state) {
+                    1
+                } else {
+                    0
+                },
+            )
+        }
+
+        4 => {
+            // compare (returns 0 if less, 1 if equal, and 2 if more)
+            assert_eq!(args.len(), 2);
+
+            Value::Number(
+                match eval(args[0].clone(), state)
+                    .unwrap_num()
+                    .cmp(&eval(args[1].clone(), state).unwrap_num())
+                {
+                    std::cmp::Ordering::Less => 0,
+                    std::cmp::Ordering::Equal => 1,
+                    std::cmp::Ordering::Greater => 2,
+                },
+            )
         }
 
         10 => {
