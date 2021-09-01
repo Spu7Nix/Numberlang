@@ -137,3 +137,46 @@ fn parse_expression(tokens: &mut Tokens) -> Expression {
         first
     }
 }
+
+pub fn fmt(exprs: Vec<Expression>) -> String {
+    if exprs.is_empty() {
+        return String::new();
+    }
+    let mut out = String::new();
+    let mut brackets_needed = false;
+    let last_index = exprs.len() - 1;
+    for (i, expr) in exprs.into_iter().enumerate() {
+        match expr {
+            Expression::Number(n) => {
+                if brackets_needed {
+                    out += &format!(" {}", n);
+                } else {
+                    out += &format!("{}", n);
+                }
+                brackets_needed = true;
+            }
+            Expression::Tuple(t) => {
+                out += &format!("({})", fmt(t));
+                brackets_needed = false;
+            }
+            Expression::Call { func, args } => {
+                let brackets = i < last_index;
+                if brackets {
+                    out.push('(');
+                } else if brackets_needed {
+                    out.push(' ');
+                }
+                out += &fmt(vec![*func]);
+                out.push('<');
+                out += &fmt(args);
+
+                if brackets {
+                    out.push(')');
+                }
+                brackets_needed = false;
+            }
+        }
+    }
+
+    out
+}
