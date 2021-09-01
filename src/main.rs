@@ -3,7 +3,8 @@ use std::{collections::HashMap, env::args, fs};
 
 pub type Number = u32;
 fn main() {
-    let script_path = "test.123";
+    let command_args: Vec<String> = args().collect();
+    let script_path = &command_args[0];
     let content = fs::read_to_string(script_path).unwrap();
     let exprs = parser::parse(&content);
 
