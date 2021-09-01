@@ -7,12 +7,10 @@ fn main() {
     let content = fs::read_to_string(script_path).unwrap();
     let exprs = parser::parse(&content);
 
-    let mut state = State {
-        variables: HashMap::new(),
-    };
+    let mut state = State::default();
 
     for e in exprs {
-        eval(e, &mut state);
+        eval(&e, &mut state);
     }
 }
 
@@ -33,19 +31,21 @@ impl Value {
     }
 }
 
+#[derive(Default, Clone)]
 struct State {
     variables: HashMap<Number, Value>,
+    functions: HashMap<Number, (Vec<Number>, Expression)>,
 }
 use parser::Expression;
 
-fn eval(expr: parser::Expression, state: &mut State) -> Value {
+fn eval(expr: &parser::Expression, state: &mut State) -> Value {
     use Expression::*;
     match expr {
-        Number(n) => Value::Number(n),
-        Tuple(v) => Value::Tuple(v.iter().map(|e| eval(e.clone(), state)).collect()),
+        Number(n) => Value::Number(*n),
+        Tuple(v) => Value::Tuple(v.iter().map(|e| eval(e, state)).collect()),
         Call { func, args } => {
-            let func = eval(*func, state).unwrap_num();
-            call_function(func, args, state)
+            let func = eval(&**func, state).unwrap_num();
+            call_function(func, args.clone(), state)
         }
     }
 }
@@ -55,7 +55,7 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
         0 => {
             // get variable value
             assert_eq!(args.len(), 1);
-            let var_id = eval(args[0].clone(), state).unwrap_num();
+            let var_id = eval(&args[0], state).unwrap_num();
             state
                 .variables
                 .get(&var_id)
@@ -66,9 +66,9 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
         1 => {
             // set variable value
             assert_eq!(args.len(), 2);
-            let key = eval(args[0].clone(), state).unwrap_num();
+            let key = eval(&args[0], state).unwrap_num();
 
-            let val = eval(args[1].clone(), state);
+            let val = eval(&args[1], state);
             state.variables.insert(key, val);
 
             Value::Tuple(Vec::new())
@@ -78,7 +78,7 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
             // sum
             let mut sum = 0;
             for arg in args {
-                sum += eval(arg, state).unwrap_num();
+                sum += eval(&arg, state).unwrap_num();
             }
             Value::Number(sum)
         }
@@ -87,13 +87,11 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
             // equal
             assert_eq!(args.len(), 2);
 
-            Value::Number(
-                if eval(args[0].clone(), state) == eval(args[1].clone(), state) {
-                    1
-                } else {
-                    0
-                },
-            )
+            Value::Number(if eval(&args[0], state) == eval(&args[1], state) {
+                1
+            } else {
+                0
+            })
         }
 
         4 => {
@@ -101,15 +99,40 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
             assert_eq!(args.len(), 2);
 
             Value::Number(
-                match eval(args[0].clone(), state)
+                match eval(&args[0], state)
                     .unwrap_num()
-                    .cmp(&eval(args[1].clone(), state).unwrap_num())
+                    .cmp(&eval(&args[1], state).unwrap_num())
                 {
                     std::cmp::Ordering::Less => 0,
                     std::cmp::Ordering::Equal => 1,
                     std::cmp::Ordering::Greater => 2,
                 },
             )
+        }
+
+        5 => {
+            // mult
+            let mut product = 1;
+            for arg in args {
+                product *= eval(&arg, state).unwrap_num();
+            }
+            Value::Number(product)
+        }
+
+        6 => {
+            // subtract
+
+            assert_eq!(args.len(), 2);
+
+            Value::Number(eval(&args[0], state).unwrap_num() - eval(&args[1], state).unwrap_num())
+        }
+
+        7 => {
+            // divide
+
+            assert_eq!(args.len(), 2);
+
+            Value::Number(eval(&args[0], state).unwrap_num() / eval(&args[1], state).unwrap_num())
         }
 
         10 => {
@@ -128,7 +151,7 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
             let mut out = String::new();
 
             for arg in args {
-                print_val(eval(arg, state), &mut out);
+                print_val(eval(&arg, state), &mut out);
             }
 
             print!("{}", out);
@@ -140,7 +163,7 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
             assert_eq!(args.len(), 1);
 
             Value::Tuple(
-                display(eval(args[0].clone(), state))
+                display(eval(&args[0], state))
                     .chars()
                     .map(|c| Value::Number(c as Number))
                     .collect(),
@@ -150,7 +173,7 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
         20 => {
             // if
             assert_eq!(args.len(), 3);
-            let condition = eval(args[0].clone(), state);
+            let condition = eval(&args[0], state);
 
             let is_true = !match condition {
                 Value::Number(n) => n == 0,
@@ -158,9 +181,9 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
             };
 
             if is_true {
-                eval(args[1].clone(), state)
+                eval(&args[1], state)
             } else {
-                eval(args[2].clone(), state)
+                eval(&args[2], state)
             }
         }
 
@@ -168,7 +191,7 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
             // while loop
             assert_eq!(args.len(), 2);
             loop {
-                let condition = eval(args[0].clone(), state);
+                let condition = eval(&args[0], state);
 
                 let is_true = !match condition {
                     Value::Number(n) => n == 0,
@@ -176,7 +199,7 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
                 };
 
                 if is_true {
-                    eval(args[1].clone(), state);
+                    eval(&args[1], state);
                 } else {
                     break;
                 }
@@ -184,7 +207,42 @@ fn call_function(id: Number, args: Vec<Expression>, state: &mut State) -> Value 
             Value::Tuple(Vec::new())
         }
 
-        _ => unimplemented!(),
+        30 => {
+            // define function
+            assert_eq!(args.len(), 3);
+            let func_id = eval(&args[0], state).unwrap_num();
+            if func_id < 100 {
+                panic!("invalid function name (must be over 100)")
+            }
+            let arguments = match eval(&args[1], state) {
+                Value::Number(n) => vec![n],
+                Value::Tuple(t) => t.into_iter().map(|n| n.unwrap_num()).collect(),
+            };
+
+            state
+                .functions
+                .insert(func_id, (arguments, args[2].clone()));
+
+            Value::Tuple(Vec::new())
+        }
+
+        n => {
+            if let Some((argdef, body)) = state.functions.get(&n).cloned() {
+                let prev_state = state.clone();
+
+                assert_eq!(args.len(), argdef.len());
+
+                for (i, arg) in argdef.iter().copied().enumerate() {
+                    let val = eval(&args[i], state);
+                    state.variables.insert(arg, val);
+                }
+                let out = eval(&body, state);
+                *state = prev_state;
+                out
+            } else {
+                panic!("undefined function {}", n)
+            }
+        }
     }
 }
 
@@ -192,6 +250,9 @@ fn display(v: Value) -> String {
     match v {
         Value::Number(n) => n.to_string(),
         Value::Tuple(v) => {
+            if v.is_empty() {
+                return String::from("()");
+            }
             let mut out = String::from("(");
             for v in v {
                 out += &display(v);

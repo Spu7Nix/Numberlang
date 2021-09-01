@@ -112,7 +112,7 @@ fn parse_expression(tokens: &mut Tokens) -> Expression {
                 Expression::Tuple(exprs)
             }
         }
-        _ => panic!("Expected expression"),
+        a => panic!("Expected expression, found {}", tokens.slice()),
     };
     if let Some(Token::In) = tokens.next() {
         let mut args = Vec::new();
