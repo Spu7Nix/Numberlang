@@ -3,7 +3,7 @@ use std::{collections::HashMap, env::args, fs};
 
 pub type Number = i32;
 fn main() {
-    let script_path = "helloworld.123";
+    let script_path = "test.123";
     let content = fs::read_to_string(script_path).unwrap();
     let exprs = parser::parse(&content);
 
