@@ -3,8 +3,8 @@ use std::{collections::HashMap, env::args, fs};
 
 pub type Number = i32;
 fn main() {
-    let script_path = "test.123";
-    let content = fs::read_to_string(script_path).unwrap();
+    let args: Vec<String> = args().collect();
+    let content = fs::read_to_string(&args[1]).unwrap();
     let exprs = parser::parse(&content);
 
     println!("{}", parser::fmt(exprs.clone()));
