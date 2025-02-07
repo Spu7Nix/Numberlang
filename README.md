@@ -1,7 +1,7 @@
 
 *"That's Numberlang!"*
 
-# Numberlang is an esoteric programming language that uses numbers for sumbols (variable names, function names, etc.)
+# Numberlang is an esoteric programming language that uses numbers for symbols (variable names, function names, etc.)
 
 ### **There are three types of expressions in Numberlang:**
 - Numbers, for example `100`, `0` or `237816`.
